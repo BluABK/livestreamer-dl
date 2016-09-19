@@ -78,6 +78,8 @@ class UI:
                 self.stop_stream(cmd)
             elif cmd[0] == 'kill' or cmd[0] == 'diaf':
                 self.kill_stream(cmd)
+            elif cmd[0] == 'help':
+                self.print_help()
             elif cmd[0] == 'q' or cmd[0] == 'quit' or cmd[0] == 'exit':
                 self.run = False
 
@@ -179,7 +181,17 @@ class UI:
                 status = "[downloading]"
             print 'Stream %s: %s - %s (started at %s) %s' % (str(stream.get_thread_id()), stream.get_channel(),
                                                              stream.get_title(), stream.get_start_time(), status)
-
+    @staticmethod
+    def print_help():
+        print 'Available commands'
+        print 'dl [channel] [title]                 Download a stream (no args gives interactive prompt)'
+        print 'list                                 Lists current active downloads'
+        print 'history                              Lists all active and inactive downloads (and their status)'
+        print 'stop [ID]                            Ends a stream (NB: Currently out of order)'
+        print 'kill [ID]                            Kills a stream (NB: Currently out of order)'
+        print 'quit                                 Closes streams and quits the program (NB: Unable to close streams)'
+        print 'help                                 Take a guess..'
+        print 'Example:  dl northernlion Northern Lion Super Show (Josh day) - The Binding of Isaac'
 
 if __name__ == "__main__":
     UI()
