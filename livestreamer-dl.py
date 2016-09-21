@@ -34,8 +34,9 @@ class UI:
         self.thread_id = 0
 
         self.prompt()
+        print "\nStopping streams... (if this lasts for too long they might have gone rogue)"
         for stream in downloading:
-            stream.stop_stream_dl()
+            stream.stop()
 
     @staticmethod
     def sanify_filename(sentence):
