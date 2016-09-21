@@ -12,6 +12,14 @@ download_history = []
 
 __author__ = 'BluABK <abk@blucoders.net>'
 
+cmd_download = ['dl', 'download', 'start', 'get', 'gimme']
+cmd_list = ['list', 'downloads', 'downloading']
+cmd_history = ['history', 'listraw']
+cmd_stop = ['stop', 'end']
+cmd_kill = ['kill', 'diaf']
+cmd_help = ['help']
+cmd_quit = ['q', 'quit', 'exit']
+
 
 class UI:
     def __init__(self):
@@ -63,7 +71,7 @@ class UI:
         while self.run:
             command = raw_input(">: ")
             cmd = command.lower().split(' ')
-            if cmd[0] == 'dl' or cmd[0] == 'download' or cmd[0] == 'start' or cmd[0] == 'get' or cmd[0] == 'gimme':
+            if cmd[0] in cmd_download:
                 if len(cmd) == 1:
                     channel = raw_input('Channel: ')
                     title = self.query_title()
@@ -71,19 +79,19 @@ class UI:
                 else:
                     # Send in command instead of cmd to preserve casing
                     self.download_stream(cmd[1], " ".join(command.split(' ')[2:]))
-            elif cmd[0] == 'list' or cmd[0] == 'downloads' or cmd[0] == 'downloading':
+            elif cmd[0] in cmd_list:
                 self.update_downloading()
                 self.list_dl()
-            elif cmd[0] == 'history' or cmd[0] == 'listraw':
+            elif cmd[0] in cmd_history:
                 self.update_downloading()
                 self.list_dl_history()
-            elif cmd[0] == 'stop' or cmd[0] == 'end':
+            elif cmd[0] in cmd_stop:
                 self.stop_stream(cmd)
-            elif cmd[0] == 'kill' or cmd[0] == 'diaf':
+            elif cmd[0] in cmd_kill:
                 self.kill_stream(cmd)
-            elif cmd[0] == 'help':
+            elif cmd[0] in cmd_help:
                 self.print_help()
-            elif cmd[0] == 'q' or cmd[0] == 'quit' or cmd[0] == 'exit':
+            elif cmd[0] in cmd_quit:
                 self.run = False
 
     def download_stream(self, channel, title='Untitled'):
