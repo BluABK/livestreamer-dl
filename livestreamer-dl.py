@@ -69,10 +69,13 @@ class UI:
                     title = self.query_title()
                     self.download_stream(channel, title)
                 else:
-                    self.download_stream(cmd[1], " ".join(cmd[2:]))
+                    # Send in command instead of cmd to preserve casing
+                    self.download_stream(cmd[1], " ".join(command.split(' ')[2:]))
             elif cmd[0] == 'list' or cmd[0] == 'downloads' or cmd[0] == 'downloading':
+                self.update_downloading()
                 self.list_dl()
             elif cmd[0] == 'history' or cmd[0] == 'listraw':
+                self.update_downloading()
                 self.list_dl_history()
             elif cmd[0] == 'stop' or cmd[0] == 'end':
                 self.stop_stream(cmd)
@@ -181,6 +184,20 @@ class UI:
                 status = "[downloading]"
             print 'Stream %s: %s - %s (started at %s) %s' % (str(stream.get_thread_id()), stream.get_channel(),
                                                              stream.get_title(), stream.get_start_time(), status)
+
+    @staticmethod
+    def update_downloading():
+        """
+        Updates the list of currently downloading items by removing dead streams
+        :return:
+        """
+        global downloading
+        updated_list = []
+        for stream in downloading:
+            if stream.status():
+                updated_list.append(stream)
+        downloading = updated_list
+
     @staticmethod
     def print_help():
         print 'Available commands'

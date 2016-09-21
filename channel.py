@@ -1,4 +1,6 @@
 from __future__ import division
+
+import os
 import threading
 import datetime
 import subprocess
@@ -29,7 +31,7 @@ class Channel(threading.Thread):
         self.base_url = 'https://www.twitch.tv/'
         self.url = self.base_url + self.channel
 
-    def run(self):  # FIXME: Overrides method in Thread (Intentional?)
+    def run(self):
         """
         Thread runtime
         :return:
@@ -38,7 +40,7 @@ class Channel(threading.Thread):
             self.start_stream_dl()
 
         # outside while loop, meaning thread end
-        print 'thread ' + str(self.thread_id) + ' ended'
+        print 'Stream ended: %s - %s (ID: %s)' % (self.get_channel(), self.get_title(), str(self.thread_id))
 
     def start_stream_dl(self):
         """
@@ -55,11 +57,19 @@ class Channel(threading.Thread):
     def stop(self):
         """
         Tell channel to stop at earliest convenience (usually when stream download finishes)
+        Print attempt to user
         :return:
         """
         print "Stopping %s (%s)" % (self.channel, str(self.thread_id))
         self.livestreamer_process.terminate()
-        # self._stop.set()
+        self._is_running = False
+
+    def stop_silently(self):
+        """
+        Tell channel to stop at earliest convenience (usually when stream download finishes)
+        :return:
+        """
+        self.livestreamer_process.terminate()
         self._is_running = False
 
     def status(self):
@@ -76,14 +86,16 @@ class Channel(threading.Thread):
 
     def livestreamer(self):
         args_to_start = 'livestreamer ' + self.args
+        devnull = open(os.devnull, 'wb')
         try:
-            self.livestreamer_process = subprocess.Popen(args_to_start, shell=True, stdout=subprocess.PIPE)
+            self.livestreamer_process = subprocess.Popen(args_to_start, shell=True,
+                                                         stdout=subprocess.PIPE, stderr=devnull)
             self.livestreamer_process.communicate()
         except subprocess.CalledProcessError as derp:
             print derp
             return False
         # When process ends
-        return True
+        self.stop_silently()
 
     def get_channel(self):
         """
