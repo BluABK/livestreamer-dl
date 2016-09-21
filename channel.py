@@ -86,9 +86,10 @@ class Channel(threading.Thread):
         args_to_start = 'livestreamer ' + self.args
         devnull = open(os.devnull, 'wb')
         try:
-            self.livestreamer_process = subprocess.Popen(args_to_start, shell=True,
+
+            self.livestreamer_process = subprocess.Popen(args_to_start, shell=False,
                                                          stdout=subprocess.PIPE, stderr=devnull)
-            self.livestreamer_process.communicate()
+            self.livestreamer_process.wait()
         except subprocess.CalledProcessError as derp:
             print derp
             return False
