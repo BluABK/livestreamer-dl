@@ -46,8 +46,8 @@ class Channel(threading.Thread):
         :return:
         """
         self.start_time = datetime.datetime.now().strftime('%Y-%m-%d %H:%M')
-        self.args = '-o "%s%s - %s - %s".ts %s %s' % (self.path, self.channel, self.start_time.replace(":", "-"),
-                                                      self.title, self.url, self.quality)
+        self.args = ['-o', '%s%s - %s - %s.ts' % (self.path, self.channel, self.start_time.replace(":", "-"), self.title), self.url, self.quality]
+
         print "[%s] starting dl: %s - %s" % (self.start_time, self.channel, self.title)
         # Fire up livestreamer instance
         self.livestreamer()
@@ -83,11 +83,11 @@ class Channel(threading.Thread):
         self._is_running = False
 
     def livestreamer(self):
-        args_to_start = 'livestreamer ' + self.args
+        args_to_start = ['livestreamer '] + self.args
         devnull = open(os.devnull, 'wb')
         try:
 
-            self.livestreamer_process = subprocess.Popen(args_to_start, shell=False,
+            self.livestreamer_process = subprocess.Popen(args_to_start, stdin=devnull,
                                                          stdout=subprocess.PIPE, stderr=devnull)
             self.livestreamer_process.wait()
         except subprocess.CalledProcessError as derp:
