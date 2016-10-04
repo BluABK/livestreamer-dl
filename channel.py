@@ -83,7 +83,7 @@ class Channel(threading.Thread):
         self._is_running = False
 
     def livestreamer(self):
-        args_to_start = ['livestreamer '] + self.args
+        args_to_start = ['livestreamer'] + self.args
         devnull = open(os.devnull, 'wb')
         try:
 
