@@ -29,17 +29,35 @@ class Channel(threading.Thread):
         self.base_url = 'https://www.twitch.tv/'
         self.url = self.base_url + self.channel
 
+    """ Thread uses these variables:
+        - self.start_time
+        - self.args
+        - self.livestreamer_process
+        - probably self.end_time
+    """
+    """ Main uses these variables:
+        - all the ones in init, but we don't care about that
+        - self.livestreamer_process
+    """
+    """
+        - Strictly speaking, everything should really be locked away in mutexes
+        - this is not an OS kernel so we can rule out unlikely or unimportant errors
+    """
+
+    # Thread
     def run(self):
         """
         Thread runtime
         :return:
         """
-        while self._is_running:
-            self.start_stream_dl()
+        # TODO: tell the data structure I am here
+        self.start_stream_dl()
 
         # outside while loop, meaning thread end
         print 'Stream ended: %s - %s (ID: %s)' % (self.get_channel(), self.get_title(), str(self.thread_id))
+        # TODO: Tell the data structure I am here no more
 
+    # Thread
     def start_stream_dl(self):
         """
         Start download of stream
@@ -52,6 +70,8 @@ class Channel(threading.Thread):
         # Fire up livestreamer instance
         self.livestreamer()
 
+
+    # To be used from main
     def stop(self):
         """
         Tell channel to stop at earliest convenience (usually when stream download finishes)
@@ -60,41 +80,24 @@ class Channel(threading.Thread):
         """
         print "Stopping %s (%s)" % (self.channel, str(self.thread_id))
         self.livestreamer_process.terminate()
-        self._is_running = False
 
-    def stop_silently(self):
-        """
-        Tell channel to stop at earliest convenience (usually when stream download finishes)
-        :return:
-        """
-        self.livestreamer_process.terminate()
-        self._is_running = False
-
-    def status(self):
-        """
-        Returns status about whether the thread is running or not (may be false if external process still runs)
-        :return:
-        """
-        return self._is_running
-
+    # To be used from main
     def kill(self):
         print "%s (%s) is being killed with F I R E" % (self.channel, str(self.thread_id))
         self.livestreamer_process.kill()
-        self._is_running = False
 
+    # To be used from thread
     def livestreamer(self):
         args_to_start = ['livestreamer'] + self.args
         devnull = open(os.devnull, 'wb')
         try:
-
             self.livestreamer_process = subprocess.Popen(args_to_start, stdin=devnull,
                                                          stdout=subprocess.PIPE, stderr=devnull)
             self.livestreamer_process.wait()
         except subprocess.CalledProcessError as derp:
             print derp
-            return False
-        # When process ends
-        self.stop_silently()
+            pass
+        # We'll get here no matter what
 
     def get_channel(self):
         """
@@ -110,19 +113,9 @@ class Channel(threading.Thread):
         """
         return self.start_time
 
-    def get_thread_id(self):
-        """
-        Returns the thread number
-        :return:
-        """
-        return self.thread_id
-
     def get_title(self):
         """
         Returns the title specified by user
         :return:
         """
         return self.title
-
-
-
