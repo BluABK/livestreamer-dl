@@ -38,7 +38,7 @@ class Channel(threading.Thread):
             self.start_stream_dl()
 
         # outside while loop, meaning thread end
-        print 'Stream ended: %s - %s (ID: %s)' % (self.get_channel(), self.get_title(), str(self.thread_id))
+        print('Stream ended: %s - %s (ID: %s)' % (self.get_channel(), self.get_title(), str(self.thread_id)))
 
     def start_stream_dl(self):
         """
@@ -48,7 +48,7 @@ class Channel(threading.Thread):
         self.start_time = datetime.datetime.now().strftime('%Y-%m-%d %H:%M')
         self.args = ['-o', '%s%s - %s - %s.ts' % (self.path, self.channel, self.start_time.replace(":", "-"), self.title), self.url, self.quality]
 
-        print "[%s] starting dl: %s - %s" % (self.start_time, self.channel, self.title)
+        print("[%s] starting dl: %s - %s" % (self.start_time, self.channel, self.title))
         # Fire up livestreamer instance
         self.livestreamer()
 
@@ -58,7 +58,7 @@ class Channel(threading.Thread):
         Print attempt to user
         :return:
         """
-        print "Stopping %s (%s)" % (self.channel, str(self.thread_id))
+        print("Stopping %s (%s)" % (self.channel, str(self.thread_id)))
         self.livestreamer_process.terminate()
         self._is_running = False
 
@@ -78,20 +78,21 @@ class Channel(threading.Thread):
         return self._is_running
 
     def kill(self):
-        print "%s (%s) is being killed with F I R E" % (self.channel, str(self.thread_id))
+        print("%s (%s) is being killed with F I R E" % (self.channel, str(self.thread_id)))
         self.livestreamer_process.kill()
         self._is_running = False
 
     def livestreamer(self):
         args_to_start = ['livestreamer'] + self.args
-        devnull = open(os.devnull, 'wb')
         try:
 
-            self.livestreamer_process = subprocess.Popen(args_to_start, stdin=devnull,
-                                                         stdout=subprocess.PIPE, stderr=devnull)
+            self.livestreamer_process = subprocess.Popen(args_to_start, stdin=subprocess.DEVNULL,
+                                                         stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
+            bleh = self.livestreamer_process.stderr.readline()
+            print(bleh)
             self.livestreamer_process.wait()
         except subprocess.CalledProcessError as derp:
-            print derp
+            print(derp)
             return False
         # When process ends
         self.stop_silently()
@@ -123,6 +124,3 @@ class Channel(threading.Thread):
         :return:
         """
         return self.title
-
-
-

@@ -1,9 +1,9 @@
-import ConfigParser
+import configparser
 import os
 
 
 class Config:
-    config = ConfigParser.RawConfigParser()
+    config = configparser.RawConfigParser()
 
     def __init__(self):
         """
@@ -15,8 +15,8 @@ class Config:
         #config_file = os.getcwd() + os.sep + "config.ini"
         config_file = 'config.ini'
         self.config.read(config_file)
-        print config_file
-        print self.get_untitled_name()
+        print(config_file)
+        print(self.get_untitled_name())
         try:
             self.config.read(config_file)
         except IOError:

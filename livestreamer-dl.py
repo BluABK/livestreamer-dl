@@ -34,7 +34,7 @@ class UI:
         self.thread_id = 0
 
         self.prompt()
-        print "\nStopping streams... (if this lasts for too long they might have gone rogue)"
+        print("\nStopping streams... (if this lasts for too long they might have gone rogue)")
         for stream in downloading:
             stream.stop()
 
@@ -70,7 +70,7 @@ class UI:
         :return:
         """
         while self.run:
-            command = raw_input(">: ")
+            command = input(">: ")
             cmd = command.lower().split(' ')
             if cmd[0] in cmd_download:
                 if len(cmd) == 1:
@@ -112,7 +112,7 @@ class UI:
             self.threads.append(cur_thread)
             self.thread_id += 1
         except SyntaxError as derp:
-            print derp.message
+            print(derp.message)
 
     @staticmethod
     def stop_stream(cmd):
@@ -121,7 +121,7 @@ class UI:
         :param cmd:
         :return:
         """
-        print downloading[0].get_thread_id()
+        print(downloading[0].get_thread_id())
         if len(cmd) > 1:
             target = int(cmd[1])
             if target in downloading:
@@ -129,9 +129,9 @@ class UI:
                 if downloading[target].status():
                     downloading.pop(target)
             else:
-                print "No stream with ID %s exists" % cmd[1]
+                print("No stream with ID %s exists" % cmd[1])
         else:
-            print "missing stream ID argument"
+            print("missing stream ID argument")
 
     def kill_stream(self, cmd):
         """
@@ -148,9 +148,9 @@ class UI:
             else:
                 # kill_stream() goes that extra mile compared to stop_stream()
                 if self.kill_rogue_stream(download_history[target]) is False:
-                    print "No stream with ID %s exists" % cmd[1]
+                    print("No stream with ID %s exists" % cmd[1])
         else:
-            print "missing stream ID argument"
+            print("missing stream ID argument")
 
     @staticmethod
     def kill_rogue_stream(target):
@@ -163,7 +163,7 @@ class UI:
             channel = target.get_channel()
             tid = target.get_thread_id()
             target.kill()
-            print "Killed rogue stream instance: %s (%s) :o" % (channel, tid)
+            print("Killed rogue stream instance: %s (%s) :o" % (channel, tid))
         except:
             # There was nothing to kill
             return False
@@ -174,10 +174,10 @@ class UI:
         Lists current active downloads
         :return:
         """
-        print 'currently downloading:'
+        print('currently downloading:')
         for stream in downloading:
-            print 'Stream %s: %s - %s (started at %s)'\
-                  % (str(stream.get_thread_id()), stream.get_channel(), stream.get_title(), stream.get_start_time())
+            print('Stream %s: %s - %s (started at %s)'\
+                  % (str(stream.get_thread_id()), stream.get_channel(), stream.get_title(), stream.get_start_time()))
 
     @staticmethod
     def list_dl_history():
@@ -185,14 +185,14 @@ class UI:
         Lists all active and inactive downloads (partly used by kill_rogue_stream())
         :return:
         """
-        print 'download history:'
+        print('download history:')
         for stream in download_history:
             if stream.status() is False:
                 status = "[ended      ]"
             else:
                 status = "[downloading]"
-            print 'Stream %s: %s - %s (started at %s) %s' % (str(stream.get_thread_id()), stream.get_channel(),
-                                                             stream.get_title(), stream.get_start_time(), status)
+            print('Stream %s: %s - %s (started at %s) %s' % (str(stream.get_thread_id()), stream.get_channel(),
+                                                             stream.get_title(), stream.get_start_time(), status))
 
     @staticmethod
     def update_downloading():
@@ -209,15 +209,15 @@ class UI:
 
     @staticmethod
     def print_help():
-        print 'Available commands'
-        print 'dl [channel] [title]                 Download a stream (no args gives interactive prompt)'
-        print 'list                                 Lists current active downloads'
-        print 'history                              Lists all active and inactive downloads (and their status)'
-        print 'stop [ID]                            Ends a stream (NB: Currently out of order)'
-        print 'kill [ID]                            Kills a stream (NB: Currently out of order)'
-        print 'quit                                 Closes streams and quits the program (NB: Unable to close streams)'
-        print 'help                                 Take a guess..'
-        print 'Example:  dl northernlion Northern Lion Super Show (Josh day) - The Binding of Isaac'
+        print('Available commands')
+        print('dl [channel] [title]                 Download a stream (no args gives interactive prompt)')
+        print('list                                 Lists current active downloads')
+        print('history                              Lists all active and inactive downloads (and their status)')
+        print('stop [ID]                            Ends a stream (NB: Currently out of order)')
+        print('kill [ID]                            Kills a stream (NB: Currently out of order)')
+        print('quit                                 Closes streams and quits the program (NB: Unable to close streams)')
+        print('help                                 Take a guess..')
+        print('Example:  dl northernlion Northern Lion Super Show (Josh day) - The Binding of Isaac')
 
 if __name__ == "__main__":
     UI()
