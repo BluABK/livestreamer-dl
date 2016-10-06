@@ -3,6 +3,17 @@ import threading
 import datetime
 import subprocess
 from sys import version_info
+import livestreamer
+import configparser
+cfg = configparser.ConfigParser()
+cfg.read('config.ini')
+auth_token = cfg['twitch']['auth_token']
+http_headers = 'Accept=application/vnd.twitchtv.v3+json' + ';Client-Id=' + auth_token + ''
+print("auth token: " + auth_token)
+print("http headers: " + http_headers)
+
+#with open('config.ini', 'w') as configfile:
+    #cfg.re
 
 if version_info[0] == 3:
     devnull = subprocess.DEVNULL
@@ -13,7 +24,7 @@ elif version_info[0] == 2:
 class Channel(threading.Thread):
     quality = 'best'
 
-    def __init__(self, threads, channel, title, path):
+    def __init__(self, threads, channel, title, path, method=None):
         """
         Channel class
         :param thread_id:
@@ -33,6 +44,7 @@ class Channel(threading.Thread):
         self.start_time = None
         self.end_time = None
         self.base_url = 'https://www.twitch.tv/'
+        self.method = method
 
     # Thread
     def run(self):
@@ -47,7 +59,12 @@ class Channel(threading.Thread):
         self.thread_id = self.threads.add(self, self.channel, self.title, self.path, self.start_time)
         print("[%s] starting dl: %s - %s" % (self.start_time, self.channel, self.title))
 
-        self.livestreamer()
+        # Determine livestreamer launch method, module or Popen
+        if self.method is not None:
+            self.livestreamer_module()
+        else:
+            self.livestreamer_shlex()
+
 
         # Deregister
         self.end_time = datetime.datetime.now().strftime('%Y-%m-%d %H:%M')
@@ -70,7 +87,7 @@ class Channel(threading.Thread):
         self.livestreamer_process.kill()
 
     # To be used from thread
-    def livestreamer(self):
+    def livestreamer_shlex(self):
         """
         Start a livestreamer instance using shell execute on the livestreamer binary
         :return:
@@ -89,9 +106,23 @@ class Channel(threading.Thread):
             print(derp)
             return False
 
-    def livestreamer_m(self):
+    def livestreamer_module(self):
         """
         Start a livestreamer instance using the imported livestreamer python script
         :return:
         """
         print("NOT IMPLEMENTED")
+        livestreamer_i = livestreamer.Livestreamer()
+        livestreamer_i.set_option('http-headers', http_headers)
+        print(livestreamer_i.get_option('http-headers'))
+        url = self.base_url + self.channel
+        try:
+            streams = livestreamer.streams(url)
+            print(streams)
+        except Exception as e:
+            print(e)
+            return
+
+        # if not keys:  # check if stream is available
+
+

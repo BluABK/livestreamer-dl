@@ -9,7 +9,6 @@ import re
 
 from channelstatus import ChannelStatus
 from channel import Channel
-import livestreamer, livestreamer_cli
 
 if version_info[0] == 3:
     from config import Config # TODO: Config issues
@@ -107,6 +106,14 @@ class UI:
             else:
                 # Send in command instead of cmd to preserve casing
                 self.download_stream(cmd[1], " ".join(command.split(' ')[2:]))
+        elif cmd[0] is 'gimme2':
+            if len(cmd) == 1:
+                channel = raw_input('Channel: ')
+                title = self.query_title()
+                self.download_stream(channel, title, method='module')
+            else:
+                # Send in command instead of cmd to preserve casing
+                self.download_stream(cmd[1], " ".join(command.split(' ')[2:]), method='module')
         elif cmd[0] in ['list', 'downloads', 'downloading']:
             self.list_dl()
         elif cmd[0] in ['history', 'listraw']:
@@ -130,7 +137,7 @@ class UI:
             # See channelstatus.ChannelLog.print_status
             log.print_status()
 
-    def download_stream(self, channel, title='Untitled'):
+    def download_stream(self, channel, title='Untitled', method=None):
         """
         Downloads a twitch stream based on args
         :param channel:
@@ -139,7 +146,10 @@ class UI:
         """
         #title = self.sanify_filename(title) # FIXME: pads *every* character with underscore (WHOOPS!)
         try:
-            Channel(self.threads, channel, title, out_dir).start()
+            if method is not None:
+                Channel(self.threads, channel, title, out_dir, method=method).start()
+            else:
+                Channel(self.threads, channel, title, out_dir).start()
         except SyntaxError as derp:
             print(derp.msg)  # was '.message' o0
 
@@ -192,6 +202,9 @@ class UI:
         print('quit                                 Closes streams and quits the program (NB: Unable to close streams)')
         print('help                                 Take a guess..')
         print('Example:  dl northernlion Northern Lion Super Show (Josh day) - The Binding of Isaac')
+        print('')
+        print('Developer features:')
+        print('gimme2                               Download a stream using livestreamer module instead of shellex')
 
 if __name__ == "__main__":
     with UI() as ui:
