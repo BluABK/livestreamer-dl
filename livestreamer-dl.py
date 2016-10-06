@@ -25,7 +25,10 @@ class UI:
         """
         self.threads = ChannelStatus()
 
-    def __del__(self):
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exct_type, exce_value, traceback):
         """
         Destructor starts with kindly telling streams to stop, and then it
         waits until the remaining threads are finished.
@@ -134,8 +137,10 @@ class UI:
         if len(cmd) < 2:
             print("missing stream ID argument")
             return
-        self.threads.get(int(cmd[1])).stop()
-        #print("No stream with ID %s exists" % cmd[1]) TODO
+        try:
+            self.threads.get(int(cmd[1])).stop()
+        except KeyError:
+            print("No stream with ID %d exists" % int(cmd[1]))
 
     def kill_stream(self, cmd):
         """
@@ -146,8 +151,10 @@ class UI:
         if len(cmd) < 2:
             print("missing stream ID argument")
             return
-        self.threads.get(int(cmd[1])).kill()
-        #print("No stream with ID %s exists" % cmd[1]) TODO
+        try:
+            self.threads.get(int(cmd[1])).kill()
+        except KeyError:
+            print("No stream with ID %d exists" % int(cmd[1]))
 
     def list_dl(self):
         """
@@ -172,7 +179,6 @@ class UI:
         print('Example:  dl northernlion Northern Lion Super Show (Josh day) - The Binding of Isaac')
 
 if __name__ == "__main__":
-    ui = UI()
-    while ui.prompt():
-        ui.handle_zombies()
-    del ui
+    with UI() as ui:
+        while ui.prompt():
+            ui.handle_zombies()
