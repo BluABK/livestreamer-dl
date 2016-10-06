@@ -26,17 +26,25 @@ class UI:
         self.threads = ChannelStatus()
 
     def __del__(self):
+        """
+        Destructor starts with kindly telling streams to stop, and then it
+        waits until the remaining threads are finished.
+        """
         print("\nTelling streams to stop")
         for tid, stream in self.threads.threads().items():
             stream.stop()
-        print("Waiting for streams", end='')
+        print("\nWaiting for streams:")
         while len(self.threads.threads()):
             print('.', end='')
             time.sleep(1)
-        print(" done")
+        print("\ndone.")
         self.handle_zombies()
 
     def handle_zombies(self):
+        """
+        Zombies are not urgent, but it is important to collect them in the long run.
+        Handling them in between prompts will keep this in check.
+        """
         for zombie in self.threads.pop_zombies():
             zombie.join()
 
@@ -94,6 +102,15 @@ class UI:
         elif cmd[0] in ['q', 'quit', 'exit']:
             return False
         return True
+
+    def list_dl_history(self):
+        """
+        threads also stores history (see ChannelLog in channelstatus.py)
+        It contains its own print method that we can access from here.
+        """
+        for tid, log in self.threads.get_history().items():
+            # See channelstatus.ChannelLog.print_status
+            log.print_status()
 
     def download_stream(self, channel, title='Untitled'):
         """

@@ -28,46 +28,25 @@ class Channel(threading.Thread):
         self.end_time = None
         self.base_url = 'https://www.twitch.tv/'
 
-    """ Thread uses these variables:
-        - self.start_time
-        - self.args
-        - self.livestreamer_process
-        - probably self.end_time
-    """
-    """ Main uses these variables:
-        - all the ones in init, but we don't care about that
-        - self.livestreamer_process
-    """
-    """
-        - Strictly speaking, everything should really be locked away in mutexes
-        - this is not an OS kernel so we can rule out unlikely or unimportant errors
-    """
-
     # Thread
     def run(self):
         """
         Thread runtime
         :return:
         """
-        self.thread_id = self.threads.add(self)
-        self.start_stream_dl()
-        # This also adds us to the cleanup queue
-        self.threads.remove(self.thread_id)
-
-    # Thread
-    def start_stream_dl(self):
-        """
-        Start download of stream
-        :return:
-        """
+        # Start time
         self.start_time = datetime.datetime.now().strftime('%Y-%m-%d %H:%M')
 
+        # Register
+        self.thread_id = self.threads.add(self, self.channel, self.title, self.path, self.start_time)
         print("[%s] starting dl: %s - %s" % (self.start_time, self.channel, self.title))
-        # Fire up livestreamer instance
+
         self.livestreamer()
 
+        # Deregister
         self.end_time = datetime.datetime.now().strftime('%Y-%m-%d %H:%M')
         print('[%s] Stream ended: %s - %s (ID: %d)' % (self.end_time, self.channel, self.title, self.thread_id))
+        self.threads.remove(self.thread_id, self.end_time)
 
     # To be used from main
     def stop(self):
