@@ -71,6 +71,10 @@ class Channel(threading.Thread):
 
     # To be used from thread
     def livestreamer(self):
+        """
+        Start a livestreamer instance using shell execute on the livestreamer binary
+        :return:
+        """
         url = self.base_url + self.channel
         args_to_start = ['livestreamer',
                          '-o',
@@ -84,3 +88,10 @@ class Channel(threading.Thread):
         except subprocess.CalledProcessError as derp:
             print(derp)
             return False
+
+    def livestreamer_m(self):
+        """
+        Start a livestreamer instance using the imported livestreamer python script
+        :return:
+        """
+        print("NOT IMPLEMENTED")
