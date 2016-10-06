@@ -1,0 +1,6 @@
+[general]
+path = .
+untitled_name = untitled
+
+[twitch]
+auth_token = ADD_YOUR_OAUTH_TOKEN_HERE
