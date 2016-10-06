@@ -7,7 +7,7 @@ import subprocess
 class Channel(threading.Thread):
     quality = 'best'
 
-    def __init__(self, thread_id, channel, title, path):
+    def __init__(self, threads, channel, title, path):
         """
         Channel class
         :param thread_id:
@@ -18,16 +18,15 @@ class Channel(threading.Thread):
         threading.Thread.__init__(self)
         if channel is None:
             raise SyntaxError("Channel(): No channel Specified ... Whoops!")  # TODO: Create custom Exception
-        self.thread_id = thread_id
-        self._is_running = True
+        self.threads = threads
+        self.thread_id = None
         self.livestreamer_process = None
         self.channel = channel
         self.title = title
         self.path = path
-        self.args = ""
-        self.start_time = 0
+        self.start_time = None
+        self.end_time = None
         self.base_url = 'https://www.twitch.tv/'
-        self.url = self.base_url + self.channel
 
     """ Thread uses these variables:
         - self.start_time
@@ -50,12 +49,10 @@ class Channel(threading.Thread):
         Thread runtime
         :return:
         """
-        # TODO: tell the data structure I am here
+        self.thread_id = self.threads.add(self)
         self.start_stream_dl()
-
-        # outside while loop, meaning thread end
-        print('Stream ended: %s - %s (ID: %s)' % (self.get_channel(), self.get_title(), str(self.thread_id)))
-        # TODO: Tell the data structure I am here no more
+        # This also adds us to the cleanup queue
+        self.threads.remove(self.thread_id)
 
     # Thread
     def start_stream_dl(self):
@@ -64,12 +61,13 @@ class Channel(threading.Thread):
         :return:
         """
         self.start_time = datetime.datetime.now().strftime('%Y-%m-%d %H:%M')
-        self.args = ['-o', '%s%s - %s - %s.ts' % (self.path, self.channel, self.start_time.replace(":", "-"), self.title), self.url, self.quality]
 
         print("[%s] starting dl: %s - %s" % (self.start_time, self.channel, self.title))
         # Fire up livestreamer instance
         self.livestreamer()
 
+        self.end_time = datetime.datetime.now().strftime('%Y-%m-%d %H:%M')
+        print('[%s] Stream ended: %s - %s (ID: %d)' % (self.end_time, self.channel, self.title, self.thread_id))
 
     # To be used from main
     def stop(self):
@@ -78,44 +76,26 @@ class Channel(threading.Thread):
         Print attempt to user
         :return:
         """
-        print("Stopping %s (%s)" % (self.channel, str(self.thread_id)))
+        print("Stopping %s (%d)" % (self.channel, self.thread_id))
         self.livestreamer_process.terminate()
 
     # To be used from main
     def kill(self):
-        print("%s (%s) is being killed with F I R E" % (self.channel, str(self.thread_id)))
+        print("%s (%d) is being killed with F I R E" % (self.channel, self.thread_id))
         self.livestreamer_process.kill()
 
     # To be used from thread
     def livestreamer(self):
-        args_to_start = ['livestreamer'] + self.args
+        url = self.base_url + self.channel
+        args_to_start = ['livestreamer',
+                         '-o',
+                         '%s%s - %s - %s.ts' % (self.path, self.channel, self.start_time.replace(":", "-"), self.title),
+                         url, self.quality]
         try:
+            # Might set stderr=subprocess.PIPE for later fun
             self.livestreamer_process = subprocess.Popen(args_to_start, stdin=subprocess.DEVNULL,
-                                                         stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
-            bleh = self.livestreamer_process.stderr.readline()
-            print(bleh)
+                                                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             self.livestreamer_process.wait()
         except subprocess.CalledProcessError as derp:
             print(derp)
             return False
-
-    def get_channel(self):
-        """
-        Returns the name of the channel
-        :return:
-        """
-        return self.channel
-
-    def get_start_time(self):
-        """
-        Returns the time and date the stream was started
-        :return:
-        """
-        return self.start_time
-
-    def get_title(self):
-        """
-        Returns the title specified by user
-        :return:
-        """
-        return self.title

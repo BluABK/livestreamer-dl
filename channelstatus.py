@@ -2,7 +2,6 @@
 
 import threading
 
-
 class ChannelStatus():
     """
     Important tidbit:
@@ -19,6 +18,7 @@ class ChannelStatus():
         self.list = {}
         self.it = 0
         self.mutex = threading.Lock()
+        self.zombies = []
 
     def add(self, obj):
         self.mutex.acquire()
@@ -40,33 +40,23 @@ class ChannelStatus():
     def remove(self, index):
         self.mutex.acquire()
         try:
+            self.zombies.append(self.list[index])
             del self.list[index]
         finally:
             self.mutex.release()
 
-    def list(self):
+    def threads(self):
         self.mutex.acquire()
         try:
-            return self.list[:]
+            return dict(self.list)
         finally:
             self.mutex.release()
 
-bleh = ChannelStatus()
-# Threads add themselves and stores the idx they get.
-# in your thread:
-#    self.index = channelstatus.add(self)
-# Before exiting, threads delete themselves:
-#    channelstatus.remove(self.index)
-
-# If main wants a list of indexes:
-#    running = channelstatus.list()
-# Then if main wants a thread gone:
-#    channelstatus.get(index).pleasedie()
-# The thread should clean up when it's done.
-# MAIN IS NOT YOUR MOM! Thread cleans up its own mess!
-# Thread can print to stdout. This becomes push notifications.
-
-bleh.add("meh")
-bleh.add("meh2")
-
-print bleh.list
+    def pop_zombies(self):
+        self.mutex.acquire()
+        try:
+            ret = list(self.zombies)
+            self.zombies = []
+            return ret
+        finally:
+            self.mutex.release()
