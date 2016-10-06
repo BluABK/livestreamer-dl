@@ -1,11 +1,25 @@
 #!/usr/bin/env python3
 # coding=utf-8
+
+# Compatibility
+from __future__ import print_function
+from sys import version_info
 import time
 import re
 
 from channelstatus import ChannelStatus
 from channel import Channel
-from config import Config # TODO: Config issues
+import livestreamer, livestreamer_cli
+
+if version_info[0] == 3:
+    from config import Config # TODO: Config issues
+    raw_input = input
+elif version_info[0] == 2:
+    from ConfigParser import RawConfigParser
+    #input = raw_input
+
+
+
 
 # splitchar = unichr(179);
 splitchar = '|'
@@ -15,7 +29,8 @@ splitchar = '|'
 __author__ = 'BluABK <abk@blucoders.net>'
 
 # FIXME: config issues
-outdir = "X:\\twitch\\dump\\"
+out_dir = "X:\\twitch\\dump\\"
+
 
 class UI:
     def __init__(self):
@@ -38,7 +53,7 @@ class UI:
             stream.stop()
         print("\nWaiting for streams:")
         while len(self.threads.threads()):
-            print('.', end='')
+            print('.', end='') # COMPAT: print_function from __future___
             time.sleep(1)
         print("\ndone.")
         self.handle_zombies()
@@ -82,7 +97,7 @@ class UI:
         Interactive user prompt
         :return:
         """
-        command = input(">: ")
+        command = raw_input(">: ")
         cmd = command.lower().split(' ')
         if cmd[0] in ['dl', 'download', 'start', 'get', 'gimme']:
             if len(cmd) == 1:
@@ -124,9 +139,9 @@ class UI:
         """
         #title = self.sanify_filename(title) # FIXME: pads *every* character with underscore (WHOOPS!)
         try:
-            Channel(self.threads, channel, title, outdir).start()
+            Channel(self.threads, channel, title, out_dir).start()
         except SyntaxError as derp:
-            print(derp.message)
+            print(derp.msg)  # was '.message' o0
 
     def stop_stream(self, cmd):
         """

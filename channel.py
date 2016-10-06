@@ -2,6 +2,12 @@ import os
 import threading
 import datetime
 import subprocess
+from sys import version_info
+
+if version_info[0] == 3:
+    devnull = subprocess.DEVNULL
+elif version_info[0] == 2:
+    devnull = open(os.devnull, 'wb')
 
 
 class Channel(threading.Thread):
@@ -72,8 +78,8 @@ class Channel(threading.Thread):
                          url, self.quality]
         try:
             # Might set stderr=subprocess.PIPE for later fun
-            self.livestreamer_process = subprocess.Popen(args_to_start, stdin=subprocess.DEVNULL,
-                                                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            self.livestreamer_process = subprocess.Popen(args_to_start, stdin=devnull,
+                                                         stdout=devnull, stderr=devnull)
             self.livestreamer_process.wait()
         except subprocess.CalledProcessError as derp:
             print(derp)
