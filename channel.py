@@ -4,6 +4,8 @@ import datetime
 import subprocess
 from sys import version_info
 import livestreamer
+import livestreamer_cli
+
 import configparser
 cfg = configparser.ConfigParser()
 cfg.read('config.ini')
@@ -99,8 +101,10 @@ class Channel(threading.Thread):
                          url, self.quality]
         try:
             # Might set stderr=subprocess.PIPE for later fun
-            self.livestreamer_process = subprocess.Popen(args_to_start, stdin=devnull,
-                                                         stdout=devnull, stderr=devnull)
+            import sys
+            self.livestreamer_process = subprocess.Popen(args_to_start, shell=False, stdin=devnull,
+                                                         stdout=sys.stdout.buffer, stderr=sys.stderr.buffer)
+            print("NEW LIVESTREAMER. pid:", self.livestreamer_process.pid)
             self.livestreamer_process.wait()
         except subprocess.CalledProcessError as derp:
             print(derp)
@@ -112,16 +116,60 @@ class Channel(threading.Thread):
         :return:
         """
         print("NOT IMPLEMENTED")
+        # Plugins? livestreamer_cli.constants.PLUGINS_DIR
         livestreamer_i = livestreamer.Livestreamer()
         livestreamer_i.set_option('http-headers', http_headers)
         print(livestreamer_i.get_option('http-headers'))
-        url = self.base_url + self.channel
         try:
             streams = livestreamer.streams(url)
             print(streams)
         except Exception as e:
             print(e)
             return
+
+        """Parses arguments."""
+        livestreamer_cli.args = {
+            'stream' : [self.quality],
+            'url'    : (self.base_url+self.channel)
+        }
+        livestreamer_cli.livestreamer = livestreamer.Livestreamer()
+        livestreamer_cli.setup_plugins()  # load_plugins of PLUGINS_DIR + cmdline specified ones
+        setup_config_args()  #
+        setup_console()
+        setup_http_session()
+
+        if args.version_check or not args.no_version_check:
+            with ignored(Exception):
+                check_version(force=args.version_check)
+
+        if args.plugins:
+            print_plugins()
+        elif args.can_handle_url:
+            try:
+                livestreamer.resolve_url(args.can_handle_url)
+            except NoPluginError:
+                sys.exit(1)
+            else:
+                sys.exit(0)
+        elif args.url:
+            try:
+                setup_options()
+                setup_plugin_options()
+                handle_url()
+            except KeyboardInterrupt:
+                # Make sure current stream gets properly cleaned up
+                if stream_fd:
+                    console.msg("Interrupted! Closing currently open stream...")
+                    try:
+                        stream_fd.close()
+                    except KeyboardInterrupt:
+                        sys.exit()
+                else:
+                    console.msg("Interrupted! Exiting...")
+        elif args.twitch_oauth_authenticate:
+            authenticate_twitch_oauth()
+        else:
+            parser.print_help()
 
         # if not keys:  # check if stream is available
 

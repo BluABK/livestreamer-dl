@@ -6,6 +6,7 @@ from __future__ import print_function
 from sys import version_info
 import time
 import re
+import threading
 
 from channelstatus import ChannelStatus
 from channel import Channel
@@ -16,19 +17,12 @@ elif version_info[0] == 2:
     from ConfigParser import RawConfigParser
     input = raw_input
 
-
-
-
-# splitchar = unichr(179);
 splitchar = '|'
-#cfg = Config() # TODO: Config issues
-#path = "X:\\twitch\\dump\\" # TODO: Config issues
 
 __author__ = 'BluABK <abk@blucoders.net>'
 
 # FIXME: config issues
 out_dir = "X:\\twitch\\dump\\"
-
 
 class UI:
     def __init__(self):
@@ -61,8 +55,15 @@ class UI:
         Zombies are not urgent, but it is important to collect them in the long run.
         Handling them in between prompts will keep this in check.
         """
+        print("DEBUG TIME")
         for zombie in self.threads.pop_zombies():
             zombie.join()
+            print("ZOMBIE local stuff:")
+            print("  Return code", zombie.livestreamer_process.returncode)
+            print("  lspid", zombie.livestreamer_process.pid)
+            print("  threading is_alive?", zombie.is_alive())
+
+        print("Number of active threads:", threading.active_count())
 
     @staticmethod
     def sanify_filename(sentence):
@@ -80,10 +81,10 @@ class UI:
         :return:
         """
         while True:
-            title = raw_input("Title: ")
+            title = input("Title: ")
             if title is ' 'or title is '' or title is None:
                 title = 'untitled'
-                choice = raw_input("No title specified, do you want to download it untitled? (Y/N): ")
+                choice = input("No title specified, do you want to download it untitled? (Y/N): ")
                 # What the user enters doesn't really matter, unless it is 'n' which indicates they changed decision.
                 if choice.lower() is 'n':
                     # Loop around to request a new title
@@ -102,7 +103,7 @@ class UI:
         cmd = command.lower().split(' ')
         if cmd[0] in ['dl', 'download', 'start', 'get', 'gimme']:
             if len(cmd) == 1:
-                channel = raw_input('Channel: ')
+                channel = input('Channel: ')
                 title = self.query_title()
                 self.download_stream(channel, title)
             else:
@@ -110,7 +111,7 @@ class UI:
                 self.download_stream(cmd[1], " ".join(command.split(' ')[2:]))
         elif cmd[0] is 'gimme2':
             if len(cmd) == 1:
-                channel = raw_input('Channel: ')
+                channel = input('Channel: ')
                 title = self.query_title()
                 self.download_stream(channel, title, method='module')
             else:
