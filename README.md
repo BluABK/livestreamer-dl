@@ -15,4 +15,7 @@ help                                 Take a guess..
 
 Example:
 >: dl northernlion Northern Lion Super Show (Josh day) - The Binding of Isaac
+
+Developer features:
+gimme2                               Download a stream using livestreamer module instead of shellex
 ```
