@@ -12,10 +12,9 @@ from channel import Channel
 
 if version_info[0] == 3:
     from config import Config # TODO: Config issues
-    raw_input = input
 elif version_info[0] == 2:
     from ConfigParser import RawConfigParser
-    #input = raw_input
+    input = raw_input
 
 
 
@@ -96,7 +95,10 @@ class UI:
         Interactive user prompt
         :return:
         """
-        command = raw_input(">: ")
+        try:
+            command = input(">: ")
+        except EOFError:
+            return False
         cmd = command.lower().split(' ')
         if cmd[0] in ['dl', 'download', 'start', 'get', 'gimme']:
             if len(cmd) == 1:
