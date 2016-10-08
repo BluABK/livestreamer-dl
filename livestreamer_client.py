@@ -1,18 +1,19 @@
 import os
 import signal
-
 import contextlib
 import functools
 import itertools
 import time
 import collections
 
-from livestreamer import (Livestreamer, StreamError, PluginError, NoPluginError)
-
-import livestreamer_cli.argparser as argparser
-import livestreamer_cli.constants as constants
-import livestreamer_cli.output as output
-
+try:
+    from livestreamer import (Livestreamer, StreamError, PluginError, NoPluginError)
+    import livestreamer_cli.argparser as argparser
+    import livestreamer_cli.constants as constants
+    import livestreamer_cli.output as output
+except ImportError:
+    print("Please use pip / pip3 install livestreamer to install livestreamer.")
+    raise
 
 class ProgressException(Exception):
     def __init__(self, written, elapsed, speed):
@@ -86,382 +87,250 @@ class Progress:
         rval += str(seconds)+"s"
         return rval
 
-args = livestreamer = None
+class LivestreamerClient:
+    def __init__(self, output_arg, url_arg, quality_arg):
+        self.livestreamer = Livestreamer()
+        if os.path.isdir(constants.PLUGINS_DIR):
+            self.livestreamer.load_plugins(os.path.expanduser(constants.PLUGINS_DIR))
 
-
-def create_output():
-    """Checks if file already exists and ask the user if it should
-    be overwritten if it does."""
-
-    if os.path.isfile(args.output) and not args.force:
-        raise IOError("check_file_output in livestreamercli: File already exists!")
-
-    return output.FileOutput(args.output)
-
-
-def open_stream(stream):
-    """Opens a stream and reads 8192 bytes from it.
-
-    This is useful to check if a stream actually has data
-    before opening the output.
-
-    returns connection to twitch
-
-    """
-    # Attempts to open the stream
-    try:
-        stream_fd = stream.open()
-    except StreamError as err:
-        raise StreamError("Could not open stream: "+str(err))
-
-    # Read 8192 bytes before proceeding to check for errors.
-    # This is to avoid opening the output unnecessarily.
-    try:
-        # TODO debug? "Pre-buffering 8192 bytes"
-        prebuffer = stream_fd.read(8192)
-    except IOError as err:
-        raise StreamError("Failed to read data from stream: "+str(err))
-
-    if not prebuffer:
-        raise StreamError("No data returned from stream")
-
-    return stream_fd, prebuffer
-
-
-def output_stream(stream):
-    """Open stream, create output and finally write the stream to output."""
-    for i in range(args.retry_open):
+        arglist = ['-o', output_arg, url_arg, quality_arg]
+        # === config files
+        config_files = []
         try:
-            stream_fd, prebuffer = open_stream(stream)
-            break
-        except StreamError:
-            # TODO: Log if you have to retry
+            config_files += [fn+"."+self.livestreamer.resolve_url(url_arg).module for fn in constants.CONFIG_FILES]
+        except NoPluginError:
             raise
-    else:
-        return
-
-    out = create_output()
-
-    try:
-        out.open()
-    except (IOError, OSError):
-        raise
-
-    try:
-        with contextlib.closing(out):
-            read_stream(stream_fd, out, prebuffer)
-    finally:
-        stream_fd.close()
-
-    return True
-
-
-def read_stream(stream, out, prebuffer, chunk_size=8192):
-    """Reads data from stream and then writes it to the output."""
-
-    stream_iterator = itertools.chain(
-        [prebuffer],
-        iter(functools.partial(stream.read, chunk_size), b"")
-    )
-    stream_iterator = Progress(stream_iterator)
-
-    try:
-        for data in stream_iterator:
-            try:
-                out.write(data)
-            except IOError:
-                # TODO debug
-                raise
-    except IOError:
-        # TODO be nicer here?
-        raise
-    finally:
-        stream.close()
-
-
-def handle_stream(streams, stream_name):
-    """Decides what to do with the selected stream.
-
-    Depending on arguments it can be one of these:
-     - Output internal command-line
-     - Output JSON represenation
-     - Continuously output the stream over HTTP
-     - Output stream data to selected output
-
-    """
-
-    stream_names = [resolve_stream_name(streams, stream_name)]
-
-    # Find any streams with a '_alt' suffix and attempt to use these in case the main stream is not usable.
-    if stream_name + "_alt" in streams.keys():
-        stream_names += stream_name + "_alt"
-
-    for stream_name in stream_names:
-        if output_stream(streams[stream_name]):
+        # Only load first available default config
+        for config_file in filter(os.path.isfile, constants.CONFIG_FILES):
+            arglist = ["@" + config_file] + arglist
             break
 
+        self.args = argparser.parser.parse_args(arglist)
 
-def fetch_streams(plugin):
-    """Attempts to fetch streams until some are returned.
-        args.retry_streams - seconds between each attempt
-    """
+        # Handle SIGTERM just like SIGINT
+        signal.signal(signal.SIGTERM, signal.default_int_handler)
 
-    try:
-        streams = plugin.get_streams(stream_types=args.stream_types,
-                                     sorting_excludes=args.stream_sorting_excludes)
-    except PluginError:
-        # TODO: This is what happens when we cannot start streaming right away
-        raise
+        # set up some options and launch
+        self.setup_http_session()
+        self.setup_options()
+        self.setup_plugin_options()
+        self.handle_url()
 
-    if not streams and not args.retry_streams:
-        return None
+    def setup_http_session(self):
+        """Sets the global HTTP settings, such as proxy and headers."""
+        a = self.args
+        ls = self.livestreamer
+        ls.set_option("http-proxy",        a.http_proxy                  ) if a.http_proxy
+        ls.set_option("https-proxy",       a.https_proxy                 ) if a.https_proxy
+        ls.set_option("http-cookies",      dict(a.http_cookie)           ) if a.http_cookie
+        ls.set_option("http-headers",      dict(a.http_header)           ) if a.http_header
+        ls.set_option("http-query-params", dict(a.http_query_param)      ) if a.http_query_param
+        ls.set_option("http-trust-env",    False                         ) if a.http_ignore_env
+        ls.set_option("http-ssl-verify",   False                         ) if a.http_no_ssl_verify
+        ls.set_option("http-ssl-cert",     a.http_ssl_cert               ) if a.http_ssl_cert
+        ls.set_option("http-ssl-cert",     tuple(a.http_ssl_cert_crt_key)) if a.http_ssl_cert_crt_key
+        ls.set_option("http-timeout",      a.http_timeout                ) if a.http_timeout
 
-    while not streams:
-        time.sleep(args.retry_streams)
+    def setup_options(self):
+        """Sets Livestreamer options."""
+        a = self.args
+        ls = self.livestreamer
+
+        ls.set_option("hls-live-edge",           a.hls_live_edge          ) if a.hls_live_edge
+        ls.set_option("hls-segment-attempts",    a.hls_segment_attempts   ) if a.hls_segment_attempts
+        ls.set_option("hls-segment-threads",     a.hls_segment_threads    ) if a.hls_segment_threads
+        ls.set_option("hls-segment-timeout",     a.hls_segment_timeout    ) if a.hls_segment_timeout
+        ls.set_option("hls-timeout",             a.hls_timeout            ) if a.hls_timeout
+        ls.set_option("hds-live-edge",           a.hds_live_edge          ) if a.hds_live_edge
+        ls.set_option("hds-segment-attempts",    a.hds_segment_attempts   ) if a.hds_segment_attempts
+        ls.set_option("hds-segment-threads",     a.hds_segment_threads    ) if a.hds_segment_threads
+        ls.set_option("hds-segment-timeout",     a.hds_segment_timeout    ) if a.hds_segment_timeout
+        ls.set_option("hds-timeout",             a.hds_timeout            ) if a.hds_timeout
+        ls.set_option("http-stream-timeout",     a.http_stream_timeout    ) if a.http_stream_timeout
+        ls.set_option("ringbuffer-size",         a.ringbuffer_size        ) if a.ringbuffer_size
+        ls.set_option("rtmp-proxy",              a.rtmp_proxy             ) if a.rtmp_proxy
+        ls.set_option("rtmp-rtmpdump",           a.rtmp_rtmpdump          ) if a.rtmp_rtmpdump
+        ls.set_option("rtmp-timeout",            a.rtmp_timeout           ) if a.rtmp_timeout
+        ls.set_option("stream-segment-attempts", a.stream_segment_attempts) if a.stream_segment_attempts
+        ls.set_option("stream-segment-threads",  a.stream_segment_threads ) if a.stream_segment_threads
+        ls.set_option("stream-segment-timeout",  a.stream_segment_timeout ) if a.stream_segment_timeout
+        ls.set_option("stream-timeout",          a.stream_timeout         ) if a.stream_timeout
+        ls.set_option("subprocess-errorlog",         a.subprocess_errorlog)
+
+    def setup_plugin_options(self):
+        """Sets Livestreamer plugin options."""
+        a = self.args
+        ls = self.livestreamer
+
+        ls.set_plugin_option("twitch",      "cookie",            a.twitch_cookie                ) if a.twitch_cookie
+        ls.set_plugin_option("twitch",      "oauth_token",       a.twitch_oauth_token           ) if a.twitch_oauth_token
+        ls.set_plugin_option("ustreamtv",   "password",          a.ustream_password             ) if a.ustream_password
+        ls.set_plugin_option("crunchyroll", "username",          a.crunchyroll_username         ) if a.crunchyroll_username
+        ls.set_plugin_option("crunchyroll", "password",          a.crunchyroll_password         ) if a.crunchyroll_password
+        ls.set_plugin_option("crunchyroll", "purge_credentials", a.crunchyroll_purge_credentials) if a.crunchyroll_purge_credentials
+        ls.set_plugin_option("livestation", "email",             a.livestation_email            ) if a.livestation_email
+        ls.set_plugin_option("livestation", "password",          a.livestation_password         ) if a.livestation_password
+
+    def handle_url(self):
+        """The URL handler.
+        Attempts to resolve the URL to a plugin and then attempts
+        to fetch a list of available streams.
+        Proceeds to handle stream if user specified a valid one,
+        otherwise output list of valid streams.
+        """
+        try:
+            streams = self.fetch_streams()
+        except NoPluginError:
+            raise
+        except PluginError:
+            raise
+        if not streams:
+            raise Exception("No streams found on this URL: " + self.args.url)
+
+        self.handle_stream(streams)
+
+    def fetch_streams(self):
+        """Attempts to fetch streams until some are returned.
+           args.retry_streams - seconds between each attempt
+        """
+        plugin = self.livestreamer.resolve_url(self.args.url)
+        retry_sec = self.args.retry_streams
 
         try:
-            streams = plugin.get_streams(stream_types=args.stream_types,
-                                         sorting_excludes=args.stream_sorting_excludes)
+            streams = plugin.get_streams(stream_types=self.args.stream_types,
+                                         sorting_excludes=self.args.stream_sorting_excludes)
         except PluginError:
-            # TODO: This is what happens for every failed retry
-            pass
+            # TODO: This is what happens when we cannot start streaming right away
+            raise
 
-    return streams
+        if not streams and not retry_sec:
+            # Give up if we aren't told to keep trying
+            return None
+
+        while not streams:
+            time.sleep(retry_sec)
+            try:
+                streams = plugin.get_streams(stream_types=self.args.stream_types,
+                                             sorting_excludes=self.args.stream_sorting_excludes)
+            except PluginError:
+                # TODO: This is what happens for every failed retry
+                pass
+        return streams
+
+    def handle_stream(self, streams):
+        """ - Outputs stream data to selected output """
+        available = sorted(streams.keys())
+
+        # Improved: Try all the ones you specified,
+        stream_names = []
+        for name in self.args.stream:
+            if name in available:
+                stream_names.append(self.resolve_stream_name(streams, name))
+
+        # and their _alt fallbacks
+        alts = []
+        for name in stream_names:
+            if name + "_alt" in available:
+                alts += name + "_alt"
+
+        stream_names += alts
+
+        for name in stream_names:
+            if self.output_stream(streams[name]):
+                return
+
+        raise Exception("The specified stream(s) '%s' could not be found" % ", ".join(self.args.stream))
 
 
-def resolve_stream_name(streams, stream_name):
-    """Returns the real stream name of a synonym."""
+    @staticmethod
+    def resolve_stream_name(streams, stream_name):
+        """Returns the real stream name of a synonym."""
 
-    if stream_name in constants.STREAM_SYNONYMS and stream_name in streams:
+        if stream_name not in constants.STREAM_SYNONYMS:
+            return stream_name
+
+        # if the name is a synonym, go through the streams
         for name, stream in streams.items():
+            # See if we can find a better name
             if stream is streams[stream_name] and name not in constants.STREAM_SYNONYMS:
                 return name
 
-    return stream_name
+        return stream_name
 
 
-def format_valid_streams(streams):
-    """Formats a dict of streams.
-
-    Filters out synonyms and displays them next to
-    the stream they point to.
-
-    """
-
-    delimiter = ", "
-    validstreams = []
-
-    for name, stream in sorted(streams.items()):
-        if name in constants.STREAM_SYNONYMS:
-            continue
-
-        synonyms = list(filter(lambda n: stream is streams[n] and n is not name, streams.keys()))
-
-        if len(synonyms) > 0:
-            name += " (%s)" % delimiter.join(synonyms)
-
-        validstreams.append(name)
-
-    return delimiter.join(validstreams)
-
-
-def handle_url():
-    """The URL handler.
-
-    Attempts to resolve the URL to a plugin and then attempts
-    to fetch a list of available streams.
-
-    Proceeds to handle stream if user specified a valid one,
-    otherwise output list of valid streams.
-
-    """
-
-    try:
-        streams = fetch_streams(livestreamer.resolve_url(args.url))
-    except NoPluginError:
-        raise
-    except PluginError:
-        raise
-
-    if not streams:
-        raise Exception("No streams found on this URL: " + args.url)
-
-    for stream_name in args.stream:
-        if stream_name in streams:
-            handle_stream(streams, stream_name)
+    def output_stream(self, stream):
+        """Open stream, create output and finally write the stream to output."""
+        for i in range(self.args.retry_open):
+            try:
+                stream_fd, prebuffer = self.open_stream(stream)
+                break
+            except StreamError:
+                # TODO: Log if you have to retry
+                raise
+        else:
             return
 
-    raise Exception("The specified stream(s) '%s' could not be found" % ", ".join(args.stream))
+        if os.path.isfile(self.args.output) and not self.args.force:
+            raise IOError("check_file_output in livestreamercli: File already exists!")
 
+        out = output.FileOutput(self.args.output)
+        out.open()
 
-def setup_http_session():
-    """Sets the global HTTP settings, such as proxy and headers."""
-    if args.http_proxy:
-        livestreamer.set_option("http-proxy", args.http_proxy)
+        try:
+            with contextlib.closing(out):
+                self.read_stream(stream_fd, out, prebuffer)
+        finally:
+            stream_fd.close()
+        return True
 
-    if args.https_proxy:
-        livestreamer.set_option("https-proxy", args.https_proxy)
+    @staticmethod
+    def open_stream(stream):
+        """Opens a stream and reads 8192 bytes from it.
 
-    if args.http_cookie:
-        livestreamer.set_option("http-cookies", dict(args.http_cookie))
+        This is useful to check if a stream actually has data
+        before opening the output.
 
-    if args.http_header:
-        livestreamer.set_option("http-headers", dict(args.http_header))
+        returns connection to twitch
+        """
+        # Attempts to open the stream
+        try:
+            stream_fd = stream.open()
+        except StreamError as err:
+            raise StreamError("Could not open stream: "+str(err))
 
-    if args.http_query_param:
-        livestreamer.set_option("http-query-params", dict(args.http_query_param))
+        # Read 8192 bytes before proceeding to check for errors.
+        # This is to avoid opening the output unnecessarily.
+        try:
+            # TODO debug? "Pre-buffering 8192 bytes"
+            prebuffer = stream_fd.read(8192)
+        except IOError as err:
+            raise StreamError("Failed to read data from stream: "+str(err))
 
-    if args.http_ignore_env:
-        livestreamer.set_option("http-trust-env", False)
+        if not prebuffer:
+            raise StreamError("No data returned from stream")
 
-    if args.http_no_ssl_verify:
-        livestreamer.set_option("http-ssl-verify", False)
+        return stream_fd, prebuffer
 
-    if args.http_ssl_cert:
-        livestreamer.set_option("http-ssl-cert", args.http_ssl_cert)
+    @staticmethod
+    def read_stream(stream, out, prebuffer, chunk_size=8192):
+        """Reads data from stream and then writes it to the output."""
 
-    if args.http_ssl_cert_crt_key:
-        livestreamer.set_option("http-ssl-cert", tuple(args.http_ssl_cert_crt_key))
+        stream_iterator = itertools.chain(
+            [prebuffer],
+            iter(functools.partial(stream.read, chunk_size), b"")
+        )
+        # TODO add some kind of a feedback object ref.
+        stream_iterator = Progress(stream_iterator)
 
-    if args.http_timeout:
-        livestreamer.set_option("http-timeout", args.http_timeout)
-
-
-def setup_options():
-    """Sets Livestreamer options."""
-    if args.hls_live_edge:
-        livestreamer.set_option("hls-live-edge", args.hls_live_edge)
-
-    if args.hls_segment_attempts:
-        livestreamer.set_option("hls-segment-attempts", args.hls_segment_attempts)
-
-    if args.hls_segment_threads:
-        livestreamer.set_option("hls-segment-threads", args.hls_segment_threads)
-
-    if args.hls_segment_timeout:
-        livestreamer.set_option("hls-segment-timeout", args.hls_segment_timeout)
-
-    if args.hls_timeout:
-        livestreamer.set_option("hls-timeout", args.hls_timeout)
-
-    if args.hds_live_edge:
-        livestreamer.set_option("hds-live-edge", args.hds_live_edge)
-
-    if args.hds_segment_attempts:
-        livestreamer.set_option("hds-segment-attempts", args.hds_segment_attempts)
-
-    if args.hds_segment_threads:
-        livestreamer.set_option("hds-segment-threads", args.hds_segment_threads)
-
-    if args.hds_segment_timeout:
-        livestreamer.set_option("hds-segment-timeout", args.hds_segment_timeout)
-
-    if args.hds_timeout:
-        livestreamer.set_option("hds-timeout", args.hds_timeout)
-
-    if args.http_stream_timeout:
-        livestreamer.set_option("http-stream-timeout", args.http_stream_timeout)
-
-    if args.ringbuffer_size:
-        livestreamer.set_option("ringbuffer-size", args.ringbuffer_size)
-
-    if args.rtmp_proxy:
-        livestreamer.set_option("rtmp-proxy", args.rtmp_proxy)
-
-    if args.rtmp_rtmpdump:
-        livestreamer.set_option("rtmp-rtmpdump", args.rtmp_rtmpdump)
-
-    if args.rtmp_timeout:
-        livestreamer.set_option("rtmp-timeout", args.rtmp_timeout)
-
-    if args.stream_segment_attempts:
-        livestreamer.set_option("stream-segment-attempts", args.stream_segment_attempts)
-
-    if args.stream_segment_threads:
-        livestreamer.set_option("stream-segment-threads", args.stream_segment_threads)
-
-    if args.stream_segment_timeout:
-        livestreamer.set_option("stream-segment-timeout", args.stream_segment_timeout)
-
-    if args.stream_timeout:
-        livestreamer.set_option("stream-timeout", args.stream_timeout)
-
-    livestreamer.set_option("subprocess-errorlog", args.subprocess_errorlog)
-
-
-def setup_plugin_options():
-    """Sets Livestreamer plugin options."""
-    if args.twitch_cookie:
-        livestreamer.set_plugin_option("twitch", "cookie", args.twitch_cookie)
-
-    if args.twitch_oauth_token:
-        livestreamer.set_plugin_option("twitch", "oauth_token",
-                                       args.twitch_oauth_token)
-
-    if args.ustream_password:
-        livestreamer.set_plugin_option("ustreamtv", "password",
-                                       args.ustream_password)
-
-    if args.crunchyroll_username:
-        livestreamer.set_plugin_option("crunchyroll", "username",
-                                       args.crunchyroll_username)
-
-    if args.crunchyroll_password:
-        livestreamer.set_plugin_option("crunchyroll", "password",
-                                       args.crunchyroll_password)
-
-    if args.crunchyroll_purge_credentials:
-        livestreamer.set_plugin_option("crunchyroll", "purge_credentials",
-                                       args.crunchyroll_purge_credentials)
-
-    if args.livestation_email:
-        livestreamer.set_plugin_option("livestation", "email",
-                                       args.livestation_email)
-
-    if args.livestation_password:
-        livestreamer.set_plugin_option("livestation", "password",
-                                       args.livestation_password)
-
-
-def main(output_arg, url_arg, quality_arg):
-    global args
-    global livestreamer
-
-    args = argparser.parser.parse_args(['-o', output_arg, url_arg, quality_arg])
-
-    livestreamer = Livestreamer()
-
-    if os.path.isdir(constants.PLUGINS_DIR):
-        livestreamer.load_plugins(os.path.expanduser(constants.PLUGINS_DIR))
-
-    # === config files
-    config_files = []
-
-    try:
-        config_files += [fn+"."+livestreamer.resolve_url(args.url).module for fn in constants.CONFIG_FILES]
-    except NoPluginError:
-        pass
-
-    # Only load first available default config
-    for config_file in filter(os.path.isfile, constants.CONFIG_FILES):
-        config_files.append(config_file)
-        break
-
-    if config_files:
-        """Parses arguments."""
-        arglist = []
-        # Load arguments from config files
-        for config_file in filter(os.path.isfile, reversed(config_files)):
-            arglist.append("@" + config_file)
-
-        arglist += ['-o', output_arg, url_arg, quality_arg]
-
-        args = argparser.parser.parse_args(arglist)
-
-    # Handle SIGTERM just like SIGINT
-    signal.signal(signal.SIGTERM, signal.default_int_handler)
-
-    setup_http_session()
-    setup_options()
-    setup_plugin_options()
-    handle_url()
+        try:
+            for data in stream_iterator:
+                try:
+                    out.write(data)
+                except IOError:
+                    # TODO debug
+                    raise
+        except IOError:
+            # TODO be nicer here?
+            raise
+        finally:
+            stream.close()
