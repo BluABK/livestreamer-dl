@@ -13,6 +13,7 @@ download_history = []
 __author__ = 'BluABK <abk@blucoders.net>'
 
 cmd_download = ['dl', 'download', 'start', 'get', 'gimme']
+cmd_download_custom = ['dlc']
 cmd_list = ['list', 'downloads', 'downloading']
 cmd_history = ['history', 'listraw']
 cmd_stop = ['stop', 'end']
@@ -64,6 +65,23 @@ class UI:
                     continue
             return title
 
+    @staticmethod
+    def query_quality():
+        """
+        Prompt user for quality until they accept their decision
+        :return:
+        """
+        while True:
+            quality = raw_input("Quality: ")
+            if quality is ' 'or quality is '' or quality is None:
+                quality = 'best'
+                choice = raw_input("No quality specified, do you want to download using 'best'? (Y/N): ")
+                # What the user enters doesn't really matter, unless it is 'n' which indicates they changed decision.
+                if choice.lower() is 'n':
+                    # Loop around to request a new title
+                    continue
+            return quality
+
     def prompt(self):
         """
         Interactive user prompt
@@ -80,6 +98,16 @@ class UI:
                 else:
                     # Send in command instead of cmd to preserve casing
                     self.download_stream(cmd[1], " ".join(command.split(' ')[2:]))
+            if cmd[0] in cmd_download_custom:
+                if len(cmd) == 1:
+                    channel = raw_input('Channel: ')
+                    title = self.query_title()
+                    quality = self.query_quality()
+                    self.download_stream(channel, title, quality)
+                else:
+                    quality = self.query_quality()
+                    # Send in command instead of cmd to preserve casing
+                    self.download_stream(cmd[1], " ".join(command.split(' ')[2:]), quality)
             elif cmd[0] in cmd_list:
                 self.update_downloading()
                 self.list_dl()
@@ -95,16 +123,17 @@ class UI:
             elif cmd[0] in cmd_quit:
                 self.run = False
 
-    def download_stream(self, channel, title='Untitled'):
+    def download_stream(self, channel, title='Untitled',quality='best'):
         """
         Downloads a twitch stream based on args
         :param channel:
         :param title:
+        :param quality:
         :return:
         """
         #title = self.sanify_filename(title) # FIXME: pads *every* character with underscore (WHOOPS!)
         try:
-            cur_thread = Channel(self.thread_id, channel, title, "X:\\twitch\\dump\\")  # FIXME: config issues
+            cur_thread = Channel(self.thread_id, channel, title, "X:\\twitch\\dump\\", quality)  # FIXME: config issues
             # Add to list of downloading streams
             downloading.append(cur_thread)
             download_history.append(cur_thread)
@@ -210,13 +239,14 @@ class UI:
     @staticmethod
     def print_help():
         print 'Available commands'
-        print 'dl [channel] [title]                 Download a stream (no args gives interactive prompt)'
-        print 'list                                 Lists current active downloads'
-        print 'history                              Lists all active and inactive downloads (and their status)'
-        print 'stop [ID]                            Ends a stream (NB: Currently out of order)'
-        print 'kill [ID]                            Kills a stream (NB: Currently out of order)'
-        print 'quit                                 Closes streams and quits the program (NB: Unable to close streams)'
-        print 'help                                 Take a guess..'
+        print 'dl [channel] [title]            Download a stream (no args gives interactive prompt)'
+        print 'dlc [channel] [title]           Download a stream with custom quality (no args gives interactive prompt)'
+        print 'list                            Lists current active downloads'
+        print 'history                         Lists all active and inactive downloads (and their status)'
+        print 'stop [ID]                       Ends a stream (NB: Currently out of order)'
+        print 'kill [ID]                       Kills a stream (NB: Currently out of order)'
+        print 'quit                            Closes streams and quits the program (NB: Unable to close streams)'
+        print 'help                            Take a guess..'
         print 'Example:  dl northernlion Northern Lion Super Show (Josh day) - The Binding of Isaac'
 
 if __name__ == "__main__":

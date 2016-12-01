@@ -5,9 +5,8 @@ import subprocess
 
 
 class Channel(threading.Thread):
-    quality = 'best'
 
-    def __init__(self, thread_id, channel, title, path):
+    def __init__(self, thread_id, channel, title, path, quality='best'):
         """
         Channel class
         :param thread_id:
@@ -28,6 +27,7 @@ class Channel(threading.Thread):
         self.start_time = 0
         self.base_url = 'https://www.twitch.tv/'
         self.url = self.base_url + self.channel
+        self.quality = quality
 
     def run(self):
         """
